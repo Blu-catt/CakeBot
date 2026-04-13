@@ -4,8 +4,11 @@ This bot allows users to purchase digital items using Telegram Stars and request
 """
 
 import os
+import hashlib
 import logging
+import sqlite3
 import traceback
+from datetime import datetime, timezone
 from collections import defaultdict
 from typing import DefaultDict, Dict
 from dotenv import load_dotenv
@@ -20,11 +23,17 @@ from telegram.ext import (
     CallbackContext
 )
 
-from config import ITEMS, MESSAGES
+from config import ITEMS, MESSAGES, PREVIEW_URL
 
 # Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_USER_IDS = {
+    part.strip()
+    for part in os.getenv('ADMIN_USER_IDS', '').split(',')
+    if part.strip()
+}
+DB_PATH = os.path.join(os.path.dirname(__file__), 'payment_proofs.db')
 
 # Setup logging
 logging.basicConfig(
@@ -42,9 +51,108 @@ STATS: Dict[str, DefaultDict[str, int]] = {
 }
 
 
+def init_db() -> None:
+    """Create payment proof table if it does not exist."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_proofs (
+                charge_id TEXT PRIMARY KEY,
+                receipt_code TEXT UNIQUE NOT NULL,
+                item_id TEXT NOT NULL,
+                item_name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+            """
+        )
+
+
+def save_payment_proof(
+    charge_id: str,
+    receipt_code: str,
+    item_id: str,
+    item_name: str,
+    user_id: str,
+    timestamp: str
+) -> None:
+    """Persist payment proof data so it survives bot restarts."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO payment_proofs
+            (charge_id, receipt_code, item_id, item_name, user_id, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (charge_id, receipt_code, item_id, item_name, user_id, timestamp)
+        )
+
+
+def get_payment_by_charge_id(charge_id: str) -> Dict[str, str] | None:
+    """Fetch payment proof by Telegram charge id."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT charge_id, receipt_code, item_id, item_name, user_id, timestamp
+            FROM payment_proofs
+            WHERE charge_id = ?
+            """,
+            (charge_id,)
+        ).fetchone()
+
+    return dict(row) if row else None
+
+
+def get_payment_by_receipt_code(receipt_code: str) -> Dict[str, str] | None:
+    """Fetch payment proof by generated receipt code."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT charge_id, receipt_code, item_id, item_name, user_id, timestamp
+            FROM payment_proofs
+            WHERE receipt_code = ?
+            """,
+            (receipt_code,)
+        ).fetchone()
+
+    return dict(row) if row else None
+
+
+def get_latest_payment_by_user(user_id: str) -> Dict[str, str] | None:
+    """Fetch latest payment proof for a user."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT charge_id, receipt_code, item_id, item_name, user_id, timestamp
+            FROM payment_proofs
+            WHERE user_id = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """,
+            (user_id,)
+        ).fetchone()
+
+    return dict(row) if row else None
+
+
+def is_admin(user_id: int) -> bool:
+    """Check whether the user is an authorized admin checker."""
+    return str(user_id) in ADMIN_USER_IDS
+
+
+def build_receipt_code(user_id: int, charge_id: str) -> str:
+    """Build a short deterministic payment proof code from user and charge IDs."""
+    payload = f"{user_id}:{charge_id}".encode("utf-8")
+    digest = hashlib.sha1(payload).hexdigest()[:10].upper()
+    return f"CKB-{digest}"
+
+
 async def start(update: Update, context: CallbackContext) -> None:
     """Handle /start command - show available items."""
-    keyboard = []
+    keyboard = [[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]]
     for item_id, item in ITEMS.items():
         keyboard.append([InlineKeyboardButton(
             f"{item['name']} - {item['price']} ⭐",
@@ -54,7 +162,8 @@ async def start(update: Update, context: CallbackContext) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         MESSAGES['welcome'],
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
     )
 
 
@@ -101,6 +210,72 @@ async def refund_command(update: Update, context: CallbackContext) -> None:
             f"Error: {type(e).__name__} - {str(e)}\n\n"
             "Please make sure you provided the correct transaction ID and try again."
         )
+
+
+async def receipt_command(update: Update, context: CallbackContext) -> None:
+    """Show payment proof details from charge id or latest user payment."""
+    user_id = str(update.effective_user.id)
+
+    if context.args:
+        charge_id = context.args[0]
+        proof = get_payment_by_charge_id(charge_id)
+    else:
+        proof = get_latest_payment_by_user(user_id)
+
+    if not proof:
+        await update.message.reply_text(
+            "Belum ada transaksi yang tersimpan.\n"
+            "Gunakan: /receipt TELEGRAM_PAYMENT_CHARGE_ID"
+        )
+        return
+
+    if proof['user_id'] != user_id:
+        await update.message.reply_text(
+            "Kamu tidak punya akses ke bukti transaksi ini."
+        )
+        return
+
+    await update.message.reply_text(
+        "✅ Bukti Pembayaran\n"
+        f"Item: {proof['item_name']}\n"
+        f"Kode Bukti: `{proof['receipt_code']}`\n"
+        f"Charge ID: `{proof['charge_id']}`\n"
+        f"Waktu: {proof['timestamp']}\n"
+        "Simpan kode bukti ini untuk verifikasi.",
+        parse_mode='Markdown'
+    )
+
+
+async def checkproof_command(update: Update, context: CallbackContext) -> None:
+    """Admin command to verify any proof by receipt code or charge id."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Command ini hanya untuk admin checker.")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Gunakan: /checkproof RECEIPT_CODE_ATAU_CHARGE_ID"
+        )
+        return
+
+    query = context.args[0].strip()
+    proof = get_payment_by_charge_id(query)
+    if not proof:
+        proof = get_payment_by_receipt_code(query.upper())
+
+    if not proof:
+        await update.message.reply_text("Bukti pembayaran tidak ditemukan.")
+        return
+
+    await update.message.reply_text(
+        "✅ Verifikasi Pembayaran\n"
+        f"Item: {proof['item_name']}\n"
+        f"User ID: `{proof['user_id']}`\n"
+        f"Kode Bukti: `{proof['receipt_code']}`\n"
+        f"Charge ID: `{proof['charge_id']}`\n"
+        f"Waktu: {proof['timestamp']}",
+        parse_mode='Markdown'
+    )
 
 
 async def button_handler(update: Update, context: CallbackContext) -> None:
@@ -153,21 +328,36 @@ async def successful_payment_callback(update: Update, context: CallbackContext) 
     item_id = payment.invoice_payload
     item = ITEMS[item_id]
     user_id = update.effective_user.id
+    charge_id = payment.telegram_payment_charge_id
+    receipt_code = build_receipt_code(user_id, charge_id)
+    paid_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Update statistics
     STATS['purchases'][str(user_id)] += 1
+    save_payment_proof(
+        charge_id=charge_id,
+        receipt_code=receipt_code,
+        item_id=item_id,
+        item_name=item['name'],
+        user_id=str(user_id),
+        timestamp=paid_at
+    )
 
     logger.info(
         f"Successful payment from user {user_id} "
-        f"for item {item_id} (charge_id: {payment.telegram_payment_charge_id})"
+        f"for item {item_id} (charge_id: {charge_id})"
     )
 
     await update.message.reply_text(
         f"Thank you for your purchase! 🎉\n\n"
         f"Here's your secret code for {item['name']}:\n"
         f"`{item['secret']}`\n\n"
+        f"Payment proof code:\n"
+        f"`{receipt_code}`\n\n"
         f"To get a refund, use this command:\n"
-        f"`/refund {payment.telegram_payment_charge_id}`\n\n"
+        f"`/refund {charge_id}`\n\n"
+        "To show payment proof again, use:\n"
+        f"`/receipt {charge_id}`\n\n"
         "Save this message to request a refund later if needed.",
         parse_mode='Markdown'
     )
@@ -181,11 +371,14 @@ async def error_handler(update: Update, context: CallbackContext) -> None:
 def main() -> None:
     """Start the bot."""
     try:
+        init_db()
         application = Application.builder().token(BOT_TOKEN).build()
 
         # Add handlers
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("receipt", receipt_command))
+        application.add_handler(CommandHandler("checkproof", checkproof_command))
         application.add_handler(CommandHandler("refund", refund_command))
         application.add_handler(CallbackQueryHandler(button_handler))
         application.add_handler(PreCheckoutQueryHandler(precheckout_callback))

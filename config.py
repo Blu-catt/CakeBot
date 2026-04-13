@@ -1,30 +1,22 @@
 from typing import Dict, Any
 
+PREVIEW_URL = 'https://t.me/+u0x4CI2Nh3IzYjI9'
+
 ITEMS: Dict[str, Dict[str, Any]] = {
-    'ice_cream': {
-        'name': 'Ice Cream 🍦',
+    'purchase': {
+        'name': 'purchase',
         'price': 1,
-        'description': 'A delicious virtual ice cream',
-        'secret': 'FROZEN2025'
-    },
-    'cookie': {
-        'name': 'Cookie 🍪',
-        'price': 3,
-        'description': 'A sweet virtual cookie',
-        'secret': 'SWEET2025'
-    },
-    'hamburger': {
-        'name': 'Hamburger 🍔',
-        'price': 5,
-        'description': 'A tasty virtual hamburger',
-        'secret': 'BURGER2025'
+        'description': 'Test purchase for access setup trial',
+        'secret': 'TRIAL-PURCHASE'
     }
 }
 
 MESSAGES = {
     'welcome': (
-        "Welcome to the Digital Store! 🎉\n"
-        "Select an item to purchase with Telegram Stars:"
+        "Welcome. I am CakeBot, and I am ready to grant you access to the server.\n\n"
+        "Membership is available for 200 Stars per month.\n"
+        "If you would like to see a preview of the server before joining, you can view it here:\n\n"
+        "_Note: After your purchase is successful, you will be given an account to contact for final access setup._"
     ),
     'help': (
         "🛍 *Digital Store Bot Help*\n\n"
