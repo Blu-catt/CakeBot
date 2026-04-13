@@ -15,7 +15,7 @@ MESSAGES = {
     'welcome': (
         "Welcome. I am CakeBot, and I am ready to grant you access to the server.\n\n"
         "Membership is available for 200 Stars per month.\n"
-        "If you would like to see a preview of the server before joining, you can view it here:\n\n"
+        "If you would like to see a preview of the server before joining, use the Server Preview button below.\n\n"
         "_Note: After your purchase is successful, you will be given an account to contact for final access setup._"
     ),
     'help': (
@@ -23,24 +23,13 @@ MESSAGES = {
         "Commands:\n"
         "/start - View available items\n"
         "/help - Show this help message\n"
-        "/refund - Request a refund (requires transaction ID)\n\n"
+        "/receipt - Show your payment proof\n"
+        "/checkproof - Admin verification command\n\n"
         "How to use:\n"
         "1. Use /start to see available items\n"
-        "2. Click on an item to purchase\n"
+        "2. Click on the purchase button\n"
         "3. Pay with Stars\n"
-        "4. Receive your secret code\n"
-        "5. Use /refund to get a refund if needed"
-    ),
-    'refund_success': (
-        "✅ Refund processed successfully!\n"
-        "The Stars have been returned to your balance."
-    ),
-    'refund_failed': (
-        "❌ Refund could not be processed.\n"
-        "Please try again later or contact support."
-    ),
-    'refund_usage': (
-        "Please provide the transaction ID after the /refund command.\n"
-        "Example: `/refund YOUR_TRANSACTION_ID`"
+        "4. Receive your secret code and proof code\n"
+        "5. Contact @luciiyan for final access setup"
     )
 }

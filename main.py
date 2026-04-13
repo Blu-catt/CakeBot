@@ -7,7 +7,6 @@ import os
 import hashlib
 import logging
 import sqlite3
-import traceback
 from datetime import datetime, timezone
 from collections import defaultdict
 from typing import DefaultDict, Dict
@@ -46,9 +45,22 @@ logger = logging.getLogger(__name__)
 
 # Store statistics
 STATS: Dict[str, DefaultDict[str, int]] = {
-    'purchases': defaultdict(int),
-    'refunds': defaultdict(int)
+    'purchases': defaultdict(int)
 }
+
+
+def build_store_keyboard() -> InlineKeyboardMarkup:
+    """Build the main store keyboard with preview and start-menu shortcuts."""
+    keyboard = [[
+        InlineKeyboardButton("Server Preview", url=PREVIEW_URL),
+        InlineKeyboardButton("Start Menu", callback_data="start_menu")
+    ]]
+    for item_id, item in ITEMS.items():
+        keyboard.append([InlineKeyboardButton(
+            f"{item['name']} - {item['price']} ⭐",
+            callback_data=item_id
+        )])
+    return InlineKeyboardMarkup(keyboard)
 
 
 def init_db() -> None:
@@ -152,14 +164,7 @@ def build_receipt_code(user_id: int, charge_id: str) -> str:
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Handle /start command - show available items."""
-    keyboard = [[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]]
-    for item_id, item in ITEMS.items():
-        keyboard.append([InlineKeyboardButton(
-            f"{item['name']} - {item['price']} ⭐",
-            callback_data=item_id
-        )])
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = build_store_keyboard()
     await update.message.reply_text(
         MESSAGES['welcome'],
         reply_markup=reply_markup,
@@ -173,43 +178,6 @@ async def help_command(update: Update, context: CallbackContext) -> None:
         MESSAGES['help'],
         parse_mode='Markdown'
     )
-
-
-async def refund_command(update: Update, context: CallbackContext) -> None:
-    """Handle /refund command - process refund requests."""
-    if not context.args:
-        await update.message.reply_text(
-            MESSAGES['refund_usage']
-        )
-        return
-
-    try:
-        charge_id = context.args[0]
-        user_id = update.effective_user.id
-
-        # Call the refund API
-        success = await context.bot.refund_star_payment(
-            user_id=user_id,
-            telegram_payment_charge_id=charge_id
-        )
-
-        if success:
-            STATS['refunds'][str(user_id)] += 1
-            await update.message.reply_text(MESSAGES['refund_success'])
-        else:
-            await update.message.reply_text(MESSAGES['refund_failed'])
-
-    except Exception as e:
-        error_text = f"Error type: {type(e).__name__}\n"
-        error_text += f"Error message: {str(e)}\n"
-        error_text += f"Traceback:\n{''.join(traceback.format_tb(e.__traceback__))}"
-        logger.error(error_text)
-
-        await update.message.reply_text(
-            f"❌ Sorry, there was an error processing your refund:\n"
-            f"Error: {type(e).__name__} - {str(e)}\n\n"
-            "Please make sure you provided the correct transaction ID and try again."
-        )
 
 
 async def receipt_command(update: Update, context: CallbackContext) -> None:
@@ -288,6 +256,14 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
         await query.answer()
 
         item_id = query.data
+        if item_id == "start_menu":
+            await query.message.reply_text(
+                MESSAGES['welcome'],
+                reply_markup=build_store_keyboard(),
+                parse_mode='Markdown'
+            )
+            return
+
         item = ITEMS[item_id]
 
         # Make sure message exists before trying to use it
@@ -354,12 +330,15 @@ async def successful_payment_callback(update: Update, context: CallbackContext) 
         f"`{item['secret']}`\n\n"
         f"Payment proof code:\n"
         f"`{receipt_code}`\n\n"
-        f"To get a refund, use this command:\n"
-        f"`/refund {charge_id}`\n\n"
+        "Please contact @luciiyan to confirm and finalize your server access setup.\n\n"
         "To show payment proof again, use:\n"
         f"`/receipt {charge_id}`\n\n"
-        "Save this message to request a refund later if needed.",
-        parse_mode='Markdown'
+        "Save this message for your records.",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[ 
+            InlineKeyboardButton("Server Preview", url=PREVIEW_URL),
+            InlineKeyboardButton("Start Menu", callback_data="start_menu")
+        ]])
     )
 
 
@@ -379,7 +358,6 @@ def main() -> None:
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(CommandHandler("receipt", receipt_command))
         application.add_handler(CommandHandler("checkproof", checkproof_command))
-        application.add_handler(CommandHandler("refund", refund_command))
         application.add_handler(CallbackQueryHandler(button_handler))
         application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
         application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
