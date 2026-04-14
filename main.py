@@ -50,11 +50,8 @@ STATS: Dict[str, DefaultDict[str, int]] = {
 
 
 def build_store_keyboard() -> InlineKeyboardMarkup:
-    """Build the main store keyboard with preview and start-menu shortcuts."""
-    keyboard = [[
-        InlineKeyboardButton("Server Preview", url=PREVIEW_URL),
-        InlineKeyboardButton("Start Menu", callback_data="start_menu")
-    ]]
+    """Build the main store keyboard."""
+    keyboard = [[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]]
     for item_id, item in ITEMS.items():
         keyboard.append([InlineKeyboardButton(
             f"{item['name']} - {item['price']} ⭐",
@@ -256,14 +253,6 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
         await query.answer()
 
         item_id = query.data
-        if item_id == "start_menu":
-            await query.message.reply_text(
-                MESSAGES['welcome'],
-                reply_markup=build_store_keyboard(),
-                parse_mode='Markdown'
-            )
-            return
-
         item = ITEMS[item_id]
 
         # Make sure message exists before trying to use it
@@ -326,8 +315,7 @@ async def successful_payment_callback(update: Update, context: CallbackContext) 
 
     await update.message.reply_text(
         f"Thank you for your purchase! 🎉\n\n"
-        f"Here's your secret code for {item['name']}:\n"
-        f"`{item['secret']}`\n\n"
+        f"Your purchase for {item['name']} is successful.\n\n"
         f"Payment proof code:\n"
         f"`{receipt_code}`\n\n"
         "Please contact @luciiyan to confirm and finalize your server access setup.\n\n"
@@ -335,10 +323,7 @@ async def successful_payment_callback(update: Update, context: CallbackContext) 
         f"`/receipt {charge_id}`\n\n"
         "Save this message for your records.",
         parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([[ 
-            InlineKeyboardButton("Server Preview", url=PREVIEW_URL),
-            InlineKeyboardButton("Start Menu", callback_data="start_menu")
-        ]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]])
     )
 
 

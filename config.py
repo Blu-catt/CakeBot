@@ -6,14 +6,14 @@ ITEMS: Dict[str, Dict[str, Any]] = {
     'purchase': {
         'name': 'purchase',
         'price': 1,
-        'description': 'Test purchase for access setup trial',
-        'secret': 'TRIAL-PURCHASE'
+        'description': 'Purchase for access setup',
+        'secret': 'PURCHASE-ACCESS'
     }
 }
 
 MESSAGES = {
     'welcome': (
-        "Welcome. I am CakeBot, and I am ready to grant you access to the server.\n\n"
+        "Hello!. I'm CakeBot, and I'm ready to grant you access to the server.\n\n"
         "Membership is available for 200 Stars per month.\n"
         "If you would like to see a preview of the server before joining, use the Server Preview button below.\n\n"
         "_Note: After your purchase is successful, you will be given an account to contact for final access setup._"
@@ -29,7 +29,7 @@ MESSAGES = {
         "1. Use /start to see available items\n"
         "2. Click on the purchase button\n"
         "3. Pay with Stars\n"
-        "4. Receive your secret code and proof code\n"
+        "4. Receive your proof code\n"
         "5. Contact @luciiyan for final access setup"
     )
 }
