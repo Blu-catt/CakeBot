@@ -5,7 +5,7 @@ PREVIEW_URL = 'https://t.me/+u0x4CI2Nh3IzYjI9'
 ITEMS: Dict[str, Dict[str, Any]] = {
     'purchase': {
         'name': 'purchase',
-        'price': 1,
+        'price': 200,
         'description': 'Purchase for access setup',
         'secret': 'PURCHASE-ACCESS'
     }
