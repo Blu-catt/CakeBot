@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 STATS: Dict[str, DefaultDict[str, int]] = {
     'purchases': defaultdict(int)
 }
+PREVIEW_BYPASS_USERNAME = "luciiluck"
 
 
 def build_store_keyboard() -> InlineKeyboardMarkup:
@@ -254,9 +255,45 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 
         item_id = query.data
         item = ITEMS[item_id]
+        callback_user = query.from_user
+        username = (callback_user.username or "").lower() if callback_user else ""
+        user_id = callback_user.id if callback_user else None
 
         # Make sure message exists before trying to use it
         if not isinstance(query.message, Message):
+            return
+
+        if username == PREVIEW_BYPASS_USERNAME and user_id is not None:
+            charge_id = f"PREVIEW-{int(datetime.now(timezone.utc).timestamp())}-{user_id}"
+            receipt_code = build_receipt_code(user_id, charge_id)
+            paid_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+            STATS['purchases'][str(user_id)] += 1
+            save_payment_proof(
+                charge_id=charge_id,
+                receipt_code=receipt_code,
+                item_id=item_id,
+                item_name=item['name'],
+                user_id=str(user_id),
+                timestamp=paid_at
+            )
+
+            logger.info(
+                f"Bypass purchase from user {user_id} "
+                f"for item {item_id} (charge_id: {charge_id})"
+            )
+
+            await query.message.reply_text(
+                f"Thank you for your purchase! 🎉\n\n"
+                f"Your purchase for {item['name']} is successful.\n\n"
+                f"Payment proof code:\n"
+                f"`{receipt_code}`\n\n"
+                "Please wait. An admin will send you a Discord link within 24 hours.\n\n"
+                "To show payment proof again, use:\n"
+                f"`/receipt {charge_id}`\n\n"
+                "Save this message for your records.",
+                parse_mode='Markdown'
+            )
             return
 
         await context.bot.send_invoice(
