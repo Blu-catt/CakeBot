@@ -22,7 +22,7 @@ from telegram.ext import (
     CallbackContext
 )
 
-from config import ITEMS, MESSAGES, PREVIEW_URL
+from config import ITEMS, MESSAGES
 
 # Load environment variables
 load_dotenv()
@@ -51,7 +51,7 @@ STATS: Dict[str, DefaultDict[str, int]] = {
 
 def build_store_keyboard() -> InlineKeyboardMarkup:
     """Build the main store keyboard."""
-    keyboard = [[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]]
+    keyboard = []
     for item_id, item in ITEMS.items():
         keyboard.append([InlineKeyboardButton(
             f"{item['name']} - {item['price']} ⭐",
@@ -318,12 +318,11 @@ async def successful_payment_callback(update: Update, context: CallbackContext) 
         f"Your purchase for {item['name']} is successful.\n\n"
         f"Payment proof code:\n"
         f"`{receipt_code}`\n\n"
-        "Please contact @luciiyan to confirm and finalize your server access setup.\n\n"
+        "Please wait. An admin will send you a Discord link within 24 hours.\n\n"
         "To show payment proof again, use:\n"
         f"`/receipt {charge_id}`\n\n"
         "Save this message for your records.",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Server Preview", url=PREVIEW_URL)]])
+        parse_mode='Markdown'
     )
 
 

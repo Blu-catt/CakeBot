@@ -1,7 +1,5 @@
 from typing import Dict, Any
 
-PREVIEW_URL = 'https://t.me/+u0x4CI2Nh3IzYjI9'
-
 ITEMS: Dict[str, Dict[str, Any]] = {
     'purchase': {
         'name': 'purchase',
@@ -15,8 +13,7 @@ MESSAGES = {
     'welcome': (
         "Hello!. I'm CakeBot, and I'm ready to grant you access to the server.\n\n"
         "Membership is available for 200 Stars per month.\n"
-        "If you would like to see a preview of the server before joining, use the Server Preview button below.\n\n"
-        "_Note: After your purchase is successful, you will be given an account to contact for final access setup._"
+        "You can continue with the purchase below."
     ),
     'help': (
         "🛍 *Digital Store Bot Help*\n\n"
@@ -30,6 +27,6 @@ MESSAGES = {
         "2. Click on the purchase button\n"
         "3. Pay with Stars\n"
         "4. Receive your proof code\n"
-        "5. Contact @luciiyan for final access setup"
+        "5. Wait for admin instructions"
     )
 }
